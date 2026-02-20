@@ -178,6 +178,33 @@ body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%
 .page-coming-icon{font-size:48px;margin-bottom:20px;opacity:.5}
 .page-coming-title{font-size:24px;font-weight:800;margin-bottom:8px;letter-spacing:-.5px}
 .page-coming-sub{font-size:14px;color:var(--text-dim);max-width:400px;line-height:1.6}
+.drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:500;display:none;backdrop-filter:blur(4px)}
+.drawer-overlay.open{display:block}
+.drawer{position:fixed;top:0;right:-560px;width:540px;height:100vh;background:rgba(12,12,18,0.97);backdrop-filter:blur(30px);border-left:1px solid var(--glass-border);z-index:501;transition:right .35s cubic-bezier(.23,1,.32,1);overflow-y:auto;display:flex;flex-direction:column}
+.drawer.open{right:0}
+.drawer-header{padding:20px 24px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.drawer-title{font-size:16px;font-weight:800}
+.drawer-body{padding:24px;flex:1;overflow-y:auto}
+.detail-section{margin-bottom:24px}
+.detail-section-title{font-size:10px;font-weight:800;color:var(--text-muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--glass-border)}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.detail-item{padding:12px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px}
+.detail-item.full{grid-column:1/-1}
+.detail-item-label{font-size:10px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.detail-item-value{font-size:14px;font-weight:600;word-break:break-word}
+.status-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
+.status-pill.green{background:var(--green-dim);color:var(--green)}
+.status-pill.amber{background:var(--amber-dim);color:var(--amber)}
+.status-pill.red{background:var(--rose-dim);color:var(--rose)}
+.status-pill.cyan{background:var(--cyan-dim);color:var(--cyan)}
+.status-pill.purple{background:var(--purple-dim);color:var(--purple)}
+.timeline{position:relative;padding-left:20px}
+.timeline::before{content:'';position:absolute;left:4px;top:8px;bottom:8px;width:1px;background:var(--glass-border)}
+.timeline-item{position:relative;padding:8px 0 8px 16px;font-size:12px}
+.timeline-item::before{content:'';position:absolute;left:-20px;top:12px;width:9px;height:9px;border-radius:50%;border:2px solid var(--glass-border);background:var(--bg)}
+.timeline-item.done::before{background:var(--green);border-color:var(--green);box-shadow:0 0 6px var(--green-glow)}
+.timeline-item.current::before{background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 6px rgba(0,212,255,0.3)}
+.timeline-item .tl-label{color:var(--text-dim);font-weight:500}.timeline-item .tl-date{color:var(--text-muted);font-size:10px;font-family:var(--mono)}
 @media(max-width:1200px){.stats-grid{grid-template-columns:repeat(3,1fr)}.grid-2,.grid-2-equal{grid-template-columns:1fr}}
 @media(max-width:900px){.sidebar{display:none}.main-content{margin-left:0}.stats-grid{grid-template-columns:1fr 1fr}.health-grid{grid-template-columns:1fr}}
 </style>
@@ -276,8 +303,24 @@ body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%
 
       <!-- PAGE: CUSTOMERS -->
       <div class="page" id="page-customers">
-        <input class="search-bar" id="custSearch" placeholder="Search customers..." oninput="handleSearch()">
+        <div class="stats-grid" id="custStats"></div>
+        <div class="tabs" id="custTabs">
+          <div class="tab active" data-ctab="all" onclick="switchCustTab('all')">All Customers</div>
+          <div class="tab" data-ctab="intake" onclick="switchCustTab('intake')">Intake Completed</div>
+          <div class="tab" data-ctab="active" onclick="switchCustTab('active')">Active Subs</div>
+          <div class="tab" data-ctab="flagged" onclick="switchCustTab('flagged')">Flagged</div>
+        </div>
+        <input class="search-bar" id="custSearch" placeholder="Search by name, email, phone..." oninput="handleSearch()">
         <div class="table-wrap" id="custTable"></div>
+        <!-- CUSTOMER DETAIL DRAWER -->
+        <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+        <div class="drawer" id="custDrawer">
+          <div class="drawer-header">
+            <div class="drawer-title" id="drawerTitle">Customer Detail</div>
+            <button class="btn" onclick="closeDrawer()" style="padding:6px 14px">✕</button>
+          </div>
+          <div class="drawer-body" id="drawerBody"></div>
+        </div>
       </div>
 
       <!-- PAGE: ORDERS -->
@@ -351,7 +394,85 @@ function renderSystemHealth(){const items=[{label:'API Server',status:'ok',value
 function renderActivityFeed(){const activities=[];(data.customers||[]).slice(0,5).forEach(c=>{activities.push({type:'signup',text:'<strong>'+esc(c.name||c.email)+'</strong> signed up',time:c.createdAt})});(data.orders||[]).slice(0,5).forEach(o=>{activities.push({type:'order',text:'<strong>'+esc(o.customerName||o.customerEmail)+'</strong> placed $'+(o.amount/100).toFixed(0)+' order',time:o.createdAt})});activities.push({type:'visit',text:'System health check passed',time:new Date().toISOString()});activities.sort((a,b)=>new Date(b.time)-new Date(a.time));document.getElementById('activityFeed').innerHTML=activities.slice(0,12).map(a=>'<div class="activity-item"><div class="activity-dot '+a.type+'"></div><div><div class="activity-text">'+a.text+'</div><div class="activity-time">'+timeAgo(a.time)+'</div></div></div>').join('')||'<div class="empty">No activity yet</div>'}
 
 // CUSTOMERS PAGE
-function renderCustomersPage(){const items=data.customers||[];if(!items.length){document.getElementById('custTable').innerHTML='<div class="empty">No customers yet</div>';return}document.getElementById('custTable').innerHTML='<table class="data-table"><thead><tr><th>Name</th><th>Email</th><th>Shipping</th><th>Subscriptions</th><th>Joined</th></tr></thead><tbody>'+items.map(c=>'<tr><td><strong>'+esc(c.name)+'</strong></td><td class="mono">'+esc(c.email)+'</td><td style="max-width:200px;font-size:12px;color:var(--text-dim)">'+esc(c.shipping)+'</td><td>'+((c.subscriptions||[]).map(s=>'<span class="badge '+(s?.status||'pending')+'">'+(s?.product_type||'?')+'</span>').join(' ')||'—')+'</td><td class="mono" style="color:var(--text-dim)">'+fmtDate(c.createdAt)+'</td></tr>').join('')+'</tbody></table>'}
+let custTab='all';
+function switchCustTab(tab){custTab=tab;document.querySelectorAll('#custTabs .tab').forEach(t=>t.classList.toggle('active',t.dataset.ctab===tab));renderCustomersPage()}
+function renderCustomersPage(){
+const allCust=data._origCustomers||[];
+const intakeCount=allCust.filter(c=>c.intakeStatus==='intake_completed').length;
+const activeCount=allCust.filter(c=>(c.subscriptions||[]).some(s=>s?.status==='active')).length;
+const flaggedCount=allCust.filter(c=>c.flaggedConditions&&c.flaggedConditions.length>0).length;
+document.getElementById('custStats').innerHTML=
+'<div class="stat-card purple"><div class="stat-icon">&#128101;</div><div class="stat-label">Total</div><div class="stat-value">'+allCust.length+'</div></div>'+
+'<div class="stat-card cyan"><div class="stat-icon">&#128203;</div><div class="stat-label">Intake Done</div><div class="stat-value">'+intakeCount+'</div></div>'+
+'<div class="stat-card mint"><div class="stat-icon">&#9889;</div><div class="stat-label">Active Subs</div><div class="stat-value">'+activeCount+'</div></div>'+
+'<div class="stat-card amber"><div class="stat-icon">&#9888;</div><div class="stat-label">Flagged</div><div class="stat-value">'+flaggedCount+'</div></div>';
+
+let items=data.customers||[];
+if(custTab==='intake')items=items.filter(c=>c.intakeStatus==='intake_completed');
+else if(custTab==='active')items=items.filter(c=>(c.subscriptions||[]).some(s=>s?.status==='active'));
+else if(custTab==='flagged')items=items.filter(c=>c.flaggedConditions&&c.flaggedConditions.length>0);
+
+if(!items.length){document.getElementById('custTable').innerHTML='<div class="empty">No customers found</div>';return}
+document.getElementById('custTable').innerHTML='<table class="data-table"><thead><tr><th>Customer</th><th>Product</th><th>Intake</th><th>Screening</th><th>Subscription</th><th>Location</th><th>Joined</th></tr></thead><tbody>'+items.map(c=>{
+const intakeClass=c.intakeStatus==='intake_completed'?'green':c.intakeStatus==='pending'?'amber':'cyan';
+const screenClass=c.screeningClear?'green':(c.flaggedConditions&&c.flaggedConditions.length)?'amber':'';
+const subBadges=(c.subscriptions||[]).map(s=>'<span class="badge '+(s?.status||'pending')+'">'+(s?.status||'none')+'</span>').join(' ')||'<span style="color:var(--text-muted)">None</span>';
+return '<tr style="cursor:pointer" onclick="openCustomer('+c.id+')"><td><strong>'+esc(c.name)+'</strong><br><span style="color:var(--text-muted);font-size:11px">'+esc(c.email)+'</span>'+(c.phone?'<br><span style="color:var(--text-muted);font-size:11px">'+esc(c.phone)+'</span>':'')+'</td><td>'+(c.treatmentProduct?'<span class="badge '+(c.treatmentProduct||'')+'">'+esc(c.treatmentProduct||'—')+'</span>':'<span style="color:var(--text-muted)">—</span>')+'</td><td><span class="status-pill '+intakeClass+'">'+(c.intakeStatus||'pending')+'</span></td><td>'+(screenClass?'<span class="status-pill '+screenClass+'">'+(c.screeningClear?'Clear':'Flagged')+'</span>':'<span style="color:var(--text-muted)">—</span>')+'</td><td>'+subBadges+'</td><td style="font-size:12px;color:var(--text-dim)">'+esc([c.shippingCity,c.shippingState].filter(Boolean).join(', ')||'—')+'</td><td class="mono" style="color:var(--text-dim)">'+fmtDate(c.createdAt)+'</td></tr>'}).join('')+'</tbody></table>'}
+
+function openCustomer(id){
+const c=(data._origCustomers||[]).find(x=>x.id===id);
+if(!c)return;
+document.getElementById('drawerOverlay').classList.add('open');
+document.getElementById('custDrawer').classList.add('open');
+document.getElementById('drawerTitle').textContent=c.name||'Customer #'+c.id;
+const age=c.dob?Math.floor((Date.now()-new Date(c.dob).getTime())/(365.25*86400000)):null;
+const bmi=(c.heightFt&&c.heightIn&&c.weightLbs)?(c.weightLbs/Math.pow(c.heightFt*12+c.heightIn,2)*703).toFixed(1):null;
+let html='';
+// Status bar
+const intakeClass=c.intakeStatus==='intake_completed'?'green':'amber';
+const hasStripe=c.stripeId?true:false;
+const hasSub=(c.subscriptions||[]).some(s=>s?.status==='active');
+html+='<div class="detail-section"><div class="detail-section-title">Journey</div><div class="timeline">';
+html+='<div class="timeline-item done"><span class="tl-label">Intake Submitted</span><br><span class="tl-date">'+fmtDate(c.createdAt)+'</span></div>';
+html+='<div class="timeline-item '+(c.intakeStatus==='intake_completed'?'done':'current')+'"><span class="tl-label">Intake Reviewed</span></div>';
+html+='<div class="timeline-item '+(hasStripe?'done':'')+'"><span class="tl-label">Payment Connected</span></div>';
+html+='<div class="timeline-item '+(hasSub?'done':'')+'"><span class="tl-label">Subscription Active</span></div>';
+html+='<div class="timeline-item"><span class="tl-label">Rx Sent to Pharmacy</span></div>';
+html+='<div class="timeline-item"><span class="tl-label">Medication Shipped</span></div>';
+html+='</div></div>';
+// Personal
+html+='<div class="detail-section"><div class="detail-section-title">Personal Information</div><div class="detail-grid">';
+html+='<div class="detail-item"><div class="detail-item-label">Full Name</div><div class="detail-item-value">'+esc(c.name)+'</div></div>';
+html+='<div class="detail-item"><div class="detail-item-label">Email</div><div class="detail-item-value">'+esc(c.email)+'</div></div>';
+html+='<div class="detail-item"><div class="detail-item-label">Phone</div><div class="detail-item-value">'+esc(c.phone||'—')+'</div></div>';
+html+='<div class="detail-item"><div class="detail-item-label">DOB / Age</div><div class="detail-item-value">'+(c.dob?fmtDate(c.dob)+(age?' ('+age+' yrs)':''):'—')+'</div></div>';
+html+='<div class="detail-item"><div class="detail-item-label">Sex</div><div class="detail-item-value">'+esc(c.sex||'—')+'</div></div>';
+html+='<div class="detail-item"><div class="detail-item-label">Height / Weight / BMI</div><div class="detail-item-value">'+(c.heightFt?c.heightFt+"'"+c.heightIn+'" / '+c.weightLbs+' lbs'+(bmi?' / BMI '+bmi:''):'—')+'</div></div>';
+html+='</div></div>';
+// Treatment
+html+='<div class="detail-section"><div class="detail-section-title">Treatment</div><div class="detail-grid">';
+html+='<div class="detail-item"><div class="detail-item-label">Selected Product</div><div class="detail-item-value">'+(c.treatmentProduct?'<span class="badge '+c.treatmentProduct+'">'+esc(c.treatmentProduct)+'</span>':'—')+'</div></div>';
+html+='<div class="detail-item"><div class="detail-item-label">Intake Status</div><div class="detail-item-value"><span class="status-pill '+intakeClass+'">'+(c.intakeStatus||'pending')+'</span></div></div>';
+html+='<div class="detail-item"><div class="detail-item-label">Screening</div><div class="detail-item-value">'+(c.screeningClear?'<span class="status-pill green">Clear</span>':(c.flaggedConditions&&c.flaggedConditions.length?'<span class="status-pill amber">Flagged</span>':'<span style="color:var(--text-muted)">Pending</span>'))+'</div></div>';
+if(c.flaggedConditions&&c.flaggedConditions.length){html+='<div class="detail-item full"><div class="detail-item-label">Flagged Conditions</div><div class="detail-item-value" style="color:var(--amber)">'+c.flaggedConditions.map(f=>esc(f)).join(', ')+'</div></div>'}
+html+='</div></div>';
+// Shipping
+html+='<div class="detail-section"><div class="detail-section-title">Shipping Address</div><div class="detail-grid">';
+html+='<div class="detail-item full"><div class="detail-item-label">Address</div><div class="detail-item-value">'+esc([c.shippingStreet,c.shippingApt].filter(Boolean).join(', ')||'—')+'<br>'+esc([c.shippingCity,c.shippingState,c.shippingZip].filter(Boolean).join(', ')||'')+'</div></div>';
+html+='</div></div>';
+// Integrations
+html+='<div class="detail-section"><div class="detail-section-title">Integrations</div><div class="detail-grid">';
+html+='<div class="detail-item"><div class="detail-item-label">Stripe ID</div><div class="detail-item-value mono" style="font-size:11px">'+esc(c.stripeId||'Not connected')+'</div></div>';
+html+='<div class="detail-item"><div class="detail-item-label">MDI Patient ID</div><div class="detail-item-value mono" style="font-size:11px">'+esc(c.mdiPatientId||'Not connected')+'</div></div>';
+html+='<div class="detail-item"><div class="detail-item-label">Visitor ID</div><div class="detail-item-value mono" style="font-size:11px">'+esc(c.visitorId||'—')+'</div></div>';
+if(c.utmSource||c.utmMedium||c.utmCampaign){html+='<div class="detail-item full"><div class="detail-item-label">UTM Attribution</div><div class="detail-item-value mono" style="font-size:11px">'+esc([c.utmSource,c.utmMedium,c.utmCampaign].filter(Boolean).join(' / '))+'</div></div>'}
+html+='</div></div>';
+// Subscriptions
+const subs=c.subscriptions||[];
+if(subs.length){html+='<div class="detail-section"><div class="detail-section-title">Subscriptions</div>';subs.forEach(s=>{if(!s)return;html+='<div style="padding:12px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center"><span class="badge '+(s.product_type||'')+'">'+esc(s.product_type||'—')+'</span><span class="badge '+(s.status||'pending')+'">'+esc(s.status||'—')+'</span></div><div style="margin-top:8px;font-size:12px;color:var(--text-dim)">'+esc(s.plan_type||'')+' — $'+((s.amount_cents||0)/100).toFixed(2)+(s.current_period_end?' — Renews '+ new Date(s.current_period_end).toLocaleDateString():'')+'</div></div>'});html+='</div>'}
+document.getElementById('drawerBody').innerHTML=html}
+
+function closeDrawer(){document.getElementById('drawerOverlay').classList.remove('open');document.getElementById('custDrawer').classList.remove('open')}
 
 // ORDERS PAGE
 function renderOrdersPage(){const s=data.dashboard?.stats||{};document.getElementById('orderStats').innerHTML='<div class="stat-card mint"><div class="stat-icon">&#128176;</div><div class="stat-label">Revenue This Month</div><div class="stat-value">$'+fmt(s.monthRevenue)+'</div></div><div class="stat-card cyan"><div class="stat-icon">&#128260;</div><div class="stat-label">MRR</div><div class="stat-value">$'+fmt(s.mrr)+'</div></div><div class="stat-card purple"><div class="stat-icon">&#128179;</div><div class="stat-label">Total Orders</div><div class="stat-value">'+(data.orders?.length||0)+'</div></div><div class="stat-card amber"><div class="stat-icon">&#128200;</div><div class="stat-label">Active Subs</div><div class="stat-value">'+(s.activeSubscriptions||0)+'</div></div>';renderOrderTable()}

@@ -63,9 +63,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ── Routes ─────────────────────────────────────────────────
 const checkoutRoutes = require('./routes/checkout');
 const adminRoutes = require('./routes/admin');
+const intakeRoutes = require('./routes/intake');
 
 app.use('/api', checkoutRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/intake', intakeRoutes);
 
 // ── Public page view tracker (no auth) ─────────────────────
 app.post('/api/track', async (req, res) => {
@@ -142,17 +144,31 @@ async function ensureTables() {
         id SERIAL PRIMARY KEY, visitor_id VARCHAR(255) NOT NULL,
         event_type VARCHAR(50) NOT NULL, metadata JSONB, created_at TIMESTAMPTZ DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS intake_submissions (
+        id SERIAL PRIMARY KEY, customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+        email VARCHAR(255) NOT NULL, first_name VARCHAR(100), last_name VARCHAR(100), phone VARCHAR(20),
+        dob DATE, sex VARCHAR(20), height_ft INTEGER, height_in INTEGER, weight_lbs INTEGER,
+        treatment_product VARCHAR(50), screening_clear BOOLEAN DEFAULT FALSE, flagged_conditions TEXT[],
+        consents JSONB, shipping_street VARCHAR(255), shipping_apt VARCHAR(100), shipping_city VARCHAR(100),
+        shipping_state VARCHAR(2), shipping_zip VARCHAR(10), ip_address VARCHAR(45), visitor_id VARCHAR(255),
+        utm_source VARCHAR(255), utm_medium VARCHAR(255), utm_campaign VARCHAR(255),
+        status VARCHAR(30) DEFAULT 'submitted', created_at TIMESTAMPTZ DEFAULT NOW()
+      );
       CREATE INDEX IF NOT EXISTS idx_page_views_time ON page_views(viewed_at);
       CREATE INDEX IF NOT EXISTS idx_page_views_visitor ON page_views(visitor_id);
       CREATE INDEX IF NOT EXISTS idx_funnel_events_type ON funnel_events(event_type);
       CREATE INDEX IF NOT EXISTS idx_funnel_events_time ON funnel_events(created_at);
+      CREATE INDEX IF NOT EXISTS idx_intake_submissions_email ON intake_submissions(email);
+      CREATE INDEX IF NOT EXISTS idx_intake_submissions_status ON intake_submissions(status);
     `).catch(e => console.log('Migration note:', e.message));
     // Add columns if they don't exist (safe for existing tables)
-    const cols = ['ip_address VARCHAR(45)', 'city VARCHAR(100)', 'state VARCHAR(100)', 'country VARCHAR(100)', 'lat DECIMAL(9,6)', 'lng DECIMAL(9,6)'];
-    for (const col of cols) {
-      const name = col.split(' ')[0];
-      await pool.query(`ALTER TABLE page_views ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {});
-    }
+    const pvCols = ['ip_address VARCHAR(45)', 'city VARCHAR(100)', 'state VARCHAR(100)', 'country VARCHAR(100)', 'lat DECIMAL(9,6)', 'lng DECIMAL(9,6)'];
+    for (const col of pvCols) { await pool.query(`ALTER TABLE page_views ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {}); }
+    const custCols = ['dob DATE','sex VARCHAR(20)','height_ft INTEGER','height_in INTEGER','weight_lbs INTEGER',
+      'shipping_apt VARCHAR(100)','treatment_product VARCHAR(50)','intake_status VARCHAR(30) DEFAULT \'pending\'',
+      'screening_clear BOOLEAN DEFAULT FALSE','flagged_conditions TEXT[]','consents JSONB',
+      'utm_source VARCHAR(255)','utm_medium VARCHAR(255)','utm_campaign VARCHAR(255)','visitor_id VARCHAR(255)'];
+    for (const col of custCols) { await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {}); }
     console.log('✓ Migrations applied');
   } catch (err) {
     console.log('Initializing database tables...');
