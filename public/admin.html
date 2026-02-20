@@ -211,7 +211,9 @@ async function doLogin() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password: pw })
     });
-    const d = await r.json();
+    const text = await r.text();
+    let d;
+    try { d = JSON.parse(text); } catch(e) { err.textContent = 'Server restarting — wait 10s and retry'; console.log('Raw response:', text.substring(0,200)); return; }
     if (!r.ok) { err.textContent = d.error || 'Login failed'; return; }
     token = d.token;
     localStorage.setItem('th_admin_token', token);
