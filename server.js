@@ -150,7 +150,7 @@ async function ensureTables() {
         dob DATE, sex VARCHAR(20), height_ft INTEGER, height_in INTEGER, weight_lbs INTEGER,
         treatment_product VARCHAR(50), screening_clear BOOLEAN DEFAULT FALSE, flagged_conditions TEXT[],
         consents JSONB, shipping_street VARCHAR(255), shipping_apt VARCHAR(100), shipping_city VARCHAR(100),
-        shipping_state VARCHAR(2), shipping_zip VARCHAR(10), ip_address VARCHAR(45), visitor_id VARCHAR(255),
+        shipping_state VARCHAR(20), shipping_zip VARCHAR(10), ip_address VARCHAR(45), visitor_id VARCHAR(255),
         utm_source VARCHAR(255), utm_medium VARCHAR(255), utm_campaign VARCHAR(255),
         status VARCHAR(30) DEFAULT 'submitted', created_at TIMESTAMPTZ DEFAULT NOW()
       );

@@ -47,6 +47,9 @@ router.post('/', async (req, res) => {
     for (const col of cols) {
       await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {});
     }
+    // Widen state columns in case they were VARCHAR(2)
+    await pool.query(`ALTER TABLE customers ALTER COLUMN shipping_state TYPE VARCHAR(20)`).catch(() => {});
+    await pool.query(`ALTER TABLE intake_submissions ALTER COLUMN shipping_state TYPE VARCHAR(20)`).catch(() => {});
 
     // Ensure intake_submissions table exists
     await pool.query(`
