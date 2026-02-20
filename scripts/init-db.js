@@ -91,7 +91,22 @@ CREATE TABLE IF NOT EXISTS page_views (
   visitor_id      VARCHAR(255) NOT NULL,
   page_path       VARCHAR(500) NOT NULL,
   referrer        VARCHAR(500),
+  ip_address      VARCHAR(45),
+  city            VARCHAR(100),
+  state           VARCHAR(100),
+  country         VARCHAR(100),
+  lat             DECIMAL(9,6),
+  lng             DECIMAL(9,6),
   viewed_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Funnel events (tracks real conversion steps)
+CREATE TABLE IF NOT EXISTS funnel_events (
+  id              SERIAL PRIMARY KEY,
+  visitor_id      VARCHAR(255) NOT NULL,
+  event_type      VARCHAR(50) NOT NULL,  -- 'page_view', 'checkout_started', 'checkout_completed', 'subscription_created'
+  metadata        JSONB,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Indexes
@@ -106,6 +121,10 @@ CREATE INDEX IF NOT EXISTS idx_webhook_events_stripe ON webhook_events(stripe_ev
 CREATE INDEX IF NOT EXISTS idx_page_views_visitor ON page_views(visitor_id);
 CREATE INDEX IF NOT EXISTS idx_page_views_time ON page_views(viewed_at);
 CREATE INDEX IF NOT EXISTS idx_page_views_page ON page_views(page_path);
+CREATE INDEX IF NOT EXISTS idx_page_views_geo ON page_views(state, country);
+CREATE INDEX IF NOT EXISTS idx_funnel_events_type ON funnel_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_funnel_events_time ON funnel_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_funnel_events_visitor ON funnel_events(visitor_id);
 `;
 
 async function initDB() {

@@ -70,13 +70,46 @@ app.use('/api/admin', adminRoutes);
 // ── Public page view tracker (no auth) ─────────────────────
 app.post('/api/track', async (req, res) => {
   try {
-    const { page, visitor_id, referrer } = req.body;
-    if (!page) return res.status(400).json({ error: 'page required' });
-    const vid = visitor_id || req.ip || 'anon-' + Date.now();
-    await pool.query(
-      `INSERT INTO page_views (visitor_id, page_path, referrer, viewed_at) VALUES ($1, $2, $3, NOW())`,
-      [vid, page, referrer || null]
-    ).catch(() => {});
+    const { page, visitor_id, referrer, event, lat, lng, city, state, country } = req.body;
+    if (!page && !event) return res.status(400).json({ error: 'page or event required' });
+    const vid = visitor_id || req.headers['x-forwarded-for']?.split(',')[0] || req.ip || 'anon-' + Date.now();
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || null;
+
+    if (page) {
+      // If client sent geo, use it; otherwise try server-side lookup
+      let geoLat = lat || null, geoLng = lng || null, geoCity = city || null, geoState = state || null, geoCountry = country || null;
+
+      if (!geoLat && ip && ip !== '127.0.0.1' && ip !== '::1') {
+        try {
+          const geoRes = await fetch(`http://ip-api.com/json/${ip}?fields=status,city,regionName,country,lat,lon`);
+          const geo = await geoRes.json();
+          if (geo.status === 'success') {
+            geoLat = geo.lat; geoLng = geo.lon; geoCity = geo.city; geoState = geo.regionName; geoCountry = geo.country;
+          }
+        } catch(e) { /* geo lookup failed, continue without */ }
+      }
+
+      await pool.query(
+        `INSERT INTO page_views (visitor_id, page_path, referrer, ip_address, city, state, country, lat, lng, viewed_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+        [vid, page, referrer || null, ip, geoCity, geoState, geoCountry, geoLat, geoLng]
+      ).catch(() => {});
+
+      // Also log as funnel event
+      await pool.query(
+        `INSERT INTO funnel_events (visitor_id, event_type, created_at) VALUES ($1, 'page_view', NOW())`,
+        [vid]
+      ).catch(() => {});
+    }
+
+    if (event) {
+      // Track funnel events: checkout_started, checkout_completed, subscription_created
+      await pool.query(
+        `INSERT INTO funnel_events (visitor_id, event_type, metadata, created_at) VALUES ($1, $2, $3, NOW())`,
+        [vid, event, req.body.metadata ? JSON.stringify(req.body.metadata) : null]
+      ).catch(() => {});
+    }
+
     res.json({ ok: true });
   } catch (err) { res.json({ ok: true }); }
 });

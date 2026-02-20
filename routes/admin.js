@@ -49,9 +49,14 @@ router.get('/dashboard', adminAuth, async (req, res) => {
        GROUP BY date_trunc('day', created_at) ORDER BY date`
     );
 
-    // Page view tracking
+    // Page views this month
     const pageViews = await pool.query(
-      `SELECT COALESCE(SUM(view_count), 0) as total FROM page_views WHERE viewed_at >= date_trunc('month', CURRENT_DATE)`
+      `SELECT COUNT(DISTINCT visitor_id) as total FROM page_views WHERE viewed_at >= date_trunc('month', CURRENT_DATE)`
+    ).catch(() => ({ rows: [{ total: 0 }] }));
+
+    // Today's visitors
+    const todayVisitors = await pool.query(
+      `SELECT COUNT(DISTINCT visitor_id) as total FROM page_views WHERE viewed_at >= date_trunc('day', NOW())`
     ).catch(() => ({ rows: [{ total: 0 }] }));
 
     res.json({
@@ -63,7 +68,8 @@ router.get('/dashboard', adminAuth, async (req, res) => {
         recentSignups: parseInt(recentSignups.rows[0].total),
         churn30d: parseInt(churn.rows[0].total),
         mrr: parseInt(mrr.rows[0].total),
-        totalVisitors: parseInt(pageViews.rows[0].total) || 0
+        monthlyVisitors: parseInt(pageViews.rows[0].total) || 0,
+        todayVisitors: parseInt(todayVisitors.rows[0].total) || 0
       },
       byProduct: byProduct.rows,
       byPlan: byPlan.rows,
@@ -302,34 +308,122 @@ router.get('/revenue-chart', adminAuth, async (req, res) => {
 });
 
 // ── GET /api/admin/analytics/live ───────────────────────────
-// Real-time visitor tracking (reads from page_views table)
 router.get('/analytics/live', adminAuth, async (req, res) => {
   try {
-    // Active visitors in last 5 minutes
     const active = await pool.query(
       `SELECT COUNT(DISTINCT visitor_id) as total FROM page_views WHERE viewed_at >= NOW() - INTERVAL '5 minutes'`
     ).catch(() => ({ rows: [{ total: 0 }] }));
-
-    // Pages being viewed right now
     const pages = await pool.query(
       `SELECT page_path as page, COUNT(*) as count FROM page_views
        WHERE viewed_at >= NOW() - INTERVAL '5 minutes'
        GROUP BY page_path ORDER BY count DESC LIMIT 8`
     ).catch(() => ({ rows: [] }));
-
-    // Today's visitors
     const today = await pool.query(
       `SELECT COUNT(DISTINCT visitor_id) as total FROM page_views WHERE viewed_at >= date_trunc('day', NOW())`
     ).catch(() => ({ rows: [{ total: 0 }] }));
-
     res.json({
       activeVisitors: parseInt(active.rows[0]?.total || 0),
       todayVisitors: parseInt(today.rows[0]?.total || 0),
       pages: pages.rows.map(p => ({ page: p.page, count: parseInt(p.count) }))
     });
   } catch (err) {
-    console.error('Live analytics error:', err);
     res.json({ activeVisitors: 0, todayVisitors: 0, pages: [] });
+  }
+});
+
+// ── GET /api/admin/analytics/geo ───────────────────────────
+// Returns visitor locations for the map
+router.get('/analytics/geo', adminAuth, async (req, res) => {
+  try {
+    const { period = '24h' } = req.query;
+    const intervals = { '1h': '1 hour', '24h': '24 hours', '7d': '7 days', '30d': '30 days', '90d': '90 days' };
+    const interval = intervals[period] || '24 hours';
+
+    // Individual points for the map (recent visitors with geo)
+    const points = await pool.query(
+      `SELECT lat, lng, city, state, country, page_path, viewed_at
+       FROM page_views
+       WHERE lat IS NOT NULL AND viewed_at >= NOW() - INTERVAL '${interval}'
+       ORDER BY viewed_at DESC LIMIT 200`
+    ).catch(() => ({ rows: [] }));
+
+    // Aggregated by state
+    const byState = await pool.query(
+      `SELECT state, country, COUNT(DISTINCT visitor_id) as visitors, COUNT(*) as views
+       FROM page_views
+       WHERE state IS NOT NULL AND viewed_at >= NOW() - INTERVAL '${interval}'
+       GROUP BY state, country ORDER BY visitors DESC LIMIT 50`
+    ).catch(() => ({ rows: [] }));
+
+    // Aggregated by city
+    const byCity = await pool.query(
+      `SELECT city, state, country, lat, lng, COUNT(DISTINCT visitor_id) as visitors
+       FROM page_views
+       WHERE city IS NOT NULL AND lat IS NOT NULL AND viewed_at >= NOW() - INTERVAL '${interval}'
+       GROUP BY city, state, country, lat, lng ORDER BY visitors DESC LIMIT 30`
+    ).catch(() => ({ rows: [] }));
+
+    // Active right now with geo
+    const activeGeo = await pool.query(
+      `SELECT DISTINCT ON (visitor_id) lat, lng, city, state, page_path
+       FROM page_views
+       WHERE lat IS NOT NULL AND viewed_at >= NOW() - INTERVAL '5 minutes'
+       ORDER BY visitor_id, viewed_at DESC LIMIT 50`
+    ).catch(() => ({ rows: [] }));
+
+    res.json({
+      points: points.rows,
+      byState: byState.rows,
+      byCity: byCity.rows,
+      activeNow: activeGeo.rows
+    });
+  } catch (err) {
+    console.error('Geo analytics error:', err);
+    res.json({ points: [], byState: [], byCity: [], activeNow: [] });
+  }
+});
+
+// ── GET /api/admin/analytics/funnel ────────────────────────
+// Real conversion funnel with time frame
+router.get('/analytics/funnel', adminAuth, async (req, res) => {
+  try {
+    const { period = '30d' } = req.query;
+    const intervals = { '7d': '7 days', '14d': '14 days', '30d': '30 days', '60d': '60 days', '90d': '90 days' };
+    const interval = intervals[period] || '30 days';
+
+    const pageViews = await pool.query(
+      `SELECT COUNT(DISTINCT visitor_id) as total FROM page_views WHERE viewed_at >= NOW() - INTERVAL '${interval}'`
+    ).catch(() => ({ rows: [{ total: 0 }] }));
+
+    const checkoutStarted = await pool.query(
+      `SELECT COUNT(DISTINCT visitor_id) as total FROM funnel_events WHERE event_type = 'checkout_started' AND created_at >= NOW() - INTERVAL '${interval}'`
+    ).catch(() => ({ rows: [{ total: 0 }] }));
+
+    const checkoutCompleted = await pool.query(
+      `SELECT COUNT(DISTINCT visitor_id) as total FROM funnel_events WHERE event_type = 'checkout_completed' AND created_at >= NOW() - INTERVAL '${interval}'`
+    ).catch(() => ({ rows: [{ total: 0 }] }));
+
+    const subscriptions = await pool.query(
+      `SELECT COUNT(*) as total FROM subscriptions WHERE status = 'active' AND created_at >= NOW() - INTERVAL '${interval}'`
+    ).catch(() => ({ rows: [{ total: 0 }] }));
+
+    const signups = await pool.query(
+      `SELECT COUNT(*) as total FROM customers WHERE role = 'customer' AND created_at >= NOW() - INTERVAL '${interval}'`
+    ).catch(() => ({ rows: [{ total: 0 }] }));
+
+    res.json({
+      period,
+      steps: [
+        { label: 'Site Visitors', value: parseInt(pageViews.rows[0].total) },
+        { label: 'Checkout Started', value: parseInt(checkoutStarted.rows[0].total) },
+        { label: 'Checkout Completed', value: parseInt(checkoutCompleted.rows[0].total) },
+        { label: 'Account Created', value: parseInt(signups.rows[0].total) },
+        { label: 'Active Subscriber', value: parseInt(subscriptions.rows[0].total) },
+      ]
+    });
+  } catch (err) {
+    console.error('Funnel error:', err);
+    res.status(500).json({ error: 'Failed to load funnel' });
   }
 });
 
