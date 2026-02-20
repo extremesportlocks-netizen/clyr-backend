@@ -164,11 +164,14 @@ async function ensureTables() {
     // Add columns if they don't exist (safe for existing tables)
     const pvCols = ['ip_address VARCHAR(45)', 'city VARCHAR(100)', 'state VARCHAR(100)', 'country VARCHAR(100)', 'lat DECIMAL(9,6)', 'lng DECIMAL(9,6)'];
     for (const col of pvCols) { await pool.query(`ALTER TABLE page_views ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {}); }
-    const custCols = ['dob DATE','sex VARCHAR(20)','height_ft INTEGER','height_in INTEGER','weight_lbs INTEGER',
-      'shipping_apt VARCHAR(100)','treatment_product VARCHAR(50)','intake_status VARCHAR(30) DEFAULT \'pending\'',
-      'screening_clear BOOLEAN DEFAULT FALSE','flagged_conditions TEXT[]','consents JSONB',
+    const custCols = [
+      'dob DATE','sex VARCHAR(20)','height_ft INTEGER','height_in INTEGER','weight_lbs INTEGER',
+      'shipping_apt VARCHAR(100)','treatment_product VARCHAR(50)','intake_status VARCHAR(30)',
+      'screening_clear BOOLEAN','flagged_conditions TEXT[]','consents JSONB',
       'utm_source VARCHAR(255)','utm_medium VARCHAR(255)','utm_campaign VARCHAR(255)','visitor_id VARCHAR(255)'];
-    for (const col of custCols) { await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {}); }
+    for (const col of custCols) {
+      await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS ${col}`).catch(e => console.log('Col migration:', col, e.message));
+    }
     console.log('✓ Migrations applied');
   } catch (err) {
     console.log('Initializing database tables...');
