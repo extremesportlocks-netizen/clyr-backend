@@ -206,7 +206,7 @@ async function doLogin() {
   const err = document.getElementById('loginErr');
   err.textContent = 'Connecting...';
   try {
-    const r = await fetchWithRetry(API + '/admin/login', {
+    const r = await fetch(API + '/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password: pw })
@@ -220,18 +220,6 @@ async function doLogin() {
   } catch (e) { err.textContent = 'Connection error: ' + e.message; }
 }
 
-// Retry fetch for Render free tier cold starts
-async function fetchWithRetry(url, opts = {}, retries = 3) {
-  for (let i = 0; i < retries; i++) {
-    const r = await fetch(url, opts);
-    const ct = r.headers.get('content-type') || '';
-    if (ct.includes('application/json')) return r;
-    // Got HTML (cold start page) — wait and retry
-    if (i < retries - 1) await new Promise(ok => setTimeout(ok, 3000));
-  }
-  throw new Error('Server is waking up — please try again in a moment');
-}
-
 function doLogout() {
   localStorage.removeItem('th_admin_token');
   token = null;
@@ -240,7 +228,7 @@ function doLogout() {
 }
 
 async function apiFetch(path) {
-  const r = await fetchWithRetry(API + path, { headers: { Authorization: 'Bearer ' + token } });
+  const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token } });
   if (r.status === 401) { doLogout(); throw new Error('Unauthorized'); }
   if (!r.ok) throw new Error('API error');
   return r.json();
