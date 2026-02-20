@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface-2: #232733;
+    --border: #2d3140;
+    --cyan: #0dc0df;
+    --cyan-dim: rgba(13,192,223,0.15);
+    --green: #2ecc71;
+    --green-dim: rgba(46,204,113,0.15);
+    --red: #e74c3c;
+    --red-dim: rgba(231,76,60,0.15);
+    --yellow: #f39c12;
+    --yellow-dim: rgba(243,156,18,0.15);
+    --text: #e4e6ed;
+    --text-dim: #8a8fa3;
+    --font: 'DM Sans', -apple-system, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* Login */
+  #loginView {
+    display: flex; align-items: center; justify-content: center; min-height: 100vh;
+    background: linear-gradient(135deg, var(--bg), #161925);
+  }
+  .login-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 40px; width: 380px; text-align: center;
+  }
+  .login-box h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .login-box .brand { color: var(--cyan); }
+  .login-box p { color: var(--text-dim); font-size: 14px; margin-bottom: 28px; }
+  .login-box input {
+    width: 100%; padding: 12px 16px; margin-bottom: 12px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: var(--font); font-size: 14px; outline: none;
+  }
+  .login-box input:focus { border-color: var(--cyan); }
+  .login-box button {
+    width: 100%; padding: 12px; background: var(--cyan); color: white; border: none;
+    border-radius: 8px; font-family: var(--font); font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .login-box button:hover { filter: brightness(1.1); }
+  #loginErr { color: var(--red); font-size: 13px; margin-top: 12px; min-height: 18px; }
+
+  /* Dashboard */
+  #dashView { display: none; }
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 32px; background: var(--surface); border-bottom: 1px solid var(--border);
+  }
+  .topbar h1 { font-size: 18px; font-weight: 700; }
+  .topbar h1 .brand { color: var(--cyan); }
+  .topbar-actions { display: flex; gap: 10px; align-items: center; }
+  .btn-sm {
+    padding: 8px 16px; border-radius: 6px; font-family: var(--font); font-size: 13px;
+    font-weight: 600; cursor: pointer; border: none; transition: all 0.2s;
+  }
+  .btn-refresh { background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--border); }
+  .btn-refresh:hover { border-color: var(--cyan); color: var(--cyan); }
+  .btn-logout { background: var(--red-dim); color: var(--red); }
+  .btn-logout:hover { background: var(--red); color: white; }
+
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px 32px; }
+
+  /* Stats Grid */
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px;
+  }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
+  }
+  .stat-card .label { font-size: 12px; color: var(--text-dim); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 8px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; }
+  .stat-card .sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+  .stat-card.cyan .value { color: var(--cyan); }
+  .stat-card.green .value { color: var(--green); }
+
+  /* Tabs */
+  .tabs {
+    display: flex; gap: 4px; margin-bottom: 20px;
+    background: var(--surface); border-radius: 10px; padding: 4px;
+    border: 1px solid var(--border); width: fit-content;
+  }
+  .tab {
+    padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    color: var(--text-dim); cursor: pointer; transition: all 0.2s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--cyan); color: white; }
+
+  /* Table */
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table th {
+    text-align: left; padding: 12px 16px; font-size: 11px; font-weight: 700;
+    color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table td {
+    padding: 14px 16px; font-size: 13px; border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* Status badges */
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .badge.active { background: var(--green-dim); color: var(--green); }
+  .badge.canceled { background: var(--red-dim); color: var(--red); }
+  .badge.past_due { background: var(--yellow-dim); color: var(--yellow); }
+  .badge.pending { background: var(--cyan-dim); color: var(--cyan); }
+  .badge.paid { background: var(--green-dim); color: var(--green); }
+  .badge.shipped { background: var(--cyan-dim); color: var(--cyan); }
+  .badge.tirzepatide { background: var(--cyan-dim); color: var(--cyan); }
+  .badge.semaglutide { background: rgba(168,130,255,0.15); color: #a882ff; }
+
+  .empty { text-align: center; padding: 60px; color: var(--text-dim); font-size: 14px; }
+
+  /* Action buttons in table */
+  .action-btn {
+    padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--text-dim); transition: all 0.2s;
+  }
+  .action-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+  .action-btn.danger:hover { border-color: var(--red); color: var(--red); }
+
+  /* Search */
+  .search-bar {
+    padding: 10px 16px; background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-family: var(--font); font-size: 13px;
+    width: 280px; outline: none; margin-bottom: 16px;
+  }
+  .search-bar:focus { border-color: var(--cyan); }
+
+  .table-wrap {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden;
+  }
+
+  @media (max-width: 768px) {
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .container { padding: 16px; }
+    .topbar { padding: 12px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginView">
+  <div class="login-box">
+    <h1><span class="brand">Admin</span> Dashboard</h1>
+    <p>CLYR Health — Manage subscriptions and revenue</p>
+    <input type="email" id="email" placeholder="Email" autocomplete="email">
+    <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+    <button onclick="doLogin()">Sign In</button>
+    <div id="loginErr"></div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashView">
+  <div class="topbar">
+    <h1><span class="brand">CLYR</span> Admin</h1>
+    <div class="topbar-actions">
+      <button class="btn-sm btn-refresh" onclick="loadAll()">↻ Refresh</button>
+      <button class="btn-sm btn-logout" onclick="doLogout()">Sign Out</button>
+    </div>
+  </div>
+  <div class="container">
+    <div class="stats-grid" id="statsGrid"></div>
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-tab="subscriptions">Subscriptions</div>
+      <div class="tab" data-tab="customers">Customers</div>
+      <div class="tab" data-tab="orders">Orders</div>
+    </div>
+    <input class="search-bar" id="searchBar" placeholder="Search by email or name..." oninput="handleSearch()">
+    <div class="table-wrap" id="content"></div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin + '/api';
+let token = localStorage.getItem('th_admin_token');
+let currentTab = 'subscriptions';
+let data = {};
+let searchTimeout;
+
+// ── Auth ──────────────────────────────────────────
+async function doLogin() {
+  const email = document.getElementById('email').value;
+  const pw = document.getElementById('password').value;
+  const err = document.getElementById('loginErr');
+  err.textContent = '';
+  try {
+    const r = await fetch(API + '/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pw })
+    });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error || 'Login failed'; return; }
+    token = d.token;
+    localStorage.setItem('th_admin_token', token);
+    showDash();
+  } catch (e) { err.textContent = 'Connection error: ' + e.message; }
+}
+
+function doLogout() {
+  localStorage.removeItem('th_admin_token');
+  token = null;
+  document.getElementById('dashView').style.display = 'none';
+  document.getElementById('loginView').style.display = 'flex';
+}
+
+async function apiFetch(path) {
+  const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token } });
+  if (r.status === 401) { doLogout(); throw new Error('Unauthorized'); }
+  if (!r.ok) throw new Error('API error');
+  return r.json();
+}
+
+// ── Dashboard ─────────────────────────────────────
+async function showDash() {
+  document.getElementById('loginView').style.display = 'none';
+  document.getElementById('dashView').style.display = 'block';
+  await loadAll();
+}
+
+async function loadAll() {
+  try {
+    const [dashboard, subs, customers, orders] = await Promise.all([
+      apiFetch('/admin/dashboard'),
+      apiFetch('/admin/subscriptions'),
+      apiFetch('/admin/customers'),
+      apiFetch('/admin/orders')
+    ]);
+    data = { dashboard, subs: subs.subscriptions, customers: customers.customers, orders: orders.orders };
+    renderStats();
+    renderTab();
+  } catch (e) {
+    console.error('Load error:', e);
+  }
+}
+
+function renderStats() {
+  const s = data.dashboard?.stats || {};
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card cyan">
+      <div class="label">Active Subscriptions</div>
+      <div class="value">${s.activeSubscriptions || 0}</div>
+      <div class="sub">${s.recentSignups || 0} new this week</div>
+    </div>
+    <div class="stat-card green">
+      <div class="label">MRR</div>
+      <div class="value">$${((s.mrr || 0) / 100).toLocaleString()}</div>
+      <div class="sub">Monthly recurring revenue</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Revenue This Month</div>
+      <div class="value">$${((s.monthRevenue || 0) / 100).toLocaleString()}</div>
+      <div class="sub">$${((s.totalRevenue || 0) / 100).toLocaleString()} all time</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Total Customers</div>
+      <div class="value">${s.totalCustomers || 0}</div>
+      <div class="sub">${s.churn30d || 0} canceled (30d)</div>
+    </div>
+  `;
+}
+
+function renderTab() {
+  const el = document.getElementById('content');
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === currentTab));
+
+  if (currentTab === 'subscriptions') {
+    const items = data.subs || [];
+    if (!items.length) { el.innerHTML = '<div class="empty">No subscriptions yet</div>'; return; }
+    el.innerHTML = `<table class="data-table">
+      <thead><tr><th>Customer</th><th>Product</th><th>Plan</th><th>Amount</th><th>Status</th><th>Renews</th><th>Actions</th></tr></thead>
+      <tbody>${items.map(s => `<tr>
+        <td>${esc(s.customerName)}<br><span style="color:var(--text-dim);font-size:11px">${esc(s.customerEmail)}</span></td>
+        <td><span class="badge ${s.productType}">${esc(s.productType)}</span></td>
+        <td>${s.planType}</td>
+        <td>$${(s.amount / 100).toFixed(2)}</td>
+        <td><span class="badge ${s.status}">${s.status}</span></td>
+        <td>${s.periodEnd ? new Date(s.periodEnd).toLocaleDateString() : '—'}</td>
+        <td>${s.status === 'active' ? `<button class="action-btn danger" onclick="cancelSub(${s.id})">Cancel</button>` : '—'}</td>
+      </tr>`).join('')}</tbody></table>`;
+  }
+
+  else if (currentTab === 'customers') {
+    const items = data.customers || [];
+    if (!items.length) { el.innerHTML = '<div class="empty">No customers yet</div>'; return; }
+    el.innerHTML = `<table class="data-table">
+      <thead><tr><th>Name</th><th>Email</th><th>Shipping</th><th>Subscriptions</th><th>Joined</th></tr></thead>
+      <tbody>${items.map(c => `<tr>
+        <td>${esc(c.name)}</td>
+        <td>${esc(c.email)}</td>
+        <td style="max-width:200px;font-size:12px;color:var(--text-dim)">${esc(c.shipping)}</td>
+        <td>${(c.subscriptions || []).map(s => `<span class="badge ${s?.status || 'pending'}">${s?.product_type || '?'} · ${s?.status || '?'}</span>`).join(' ')}</td>
+        <td>${fmtDate(c.createdAt)}</td>
+      </tr>`).join('')}</tbody></table>`;
+  }
+
+  else if (currentTab === 'orders') {
+    const items = data.orders || [];
+    if (!items.length) { el.innerHTML = '<div class="empty">No orders yet</div>'; return; }
+    el.innerHTML = `<table class="data-table">
+      <thead><tr><th>Customer</th><th>Product</th><th>Amount</th><th>Payment</th><th>Pharmacy</th><th>Tracking</th><th>Date</th></tr></thead>
+      <tbody>${items.map(o => `<tr>
+        <td>${esc(o.customerName)}<br><span style="color:var(--text-dim);font-size:11px">${esc(o.customerEmail)}</span></td>
+        <td><span class="badge ${o.productType}">${esc(o.productType || '—')}</span></td>
+        <td>$${(o.amount / 100).toFixed(2)}</td>
+        <td><span class="badge ${o.status}">${o.status}</span></td>
+        <td>${o.pharmacyStatus ? `<span class="badge ${o.pharmacyStatus}">${o.pharmacyStatus}</span>` : '—'}</td>
+        <td style="font-size:12px">${o.trackingNumber || '—'}</td>
+        <td>${fmtDate(o.createdAt)}</td>
+      </tr>`).join('')}</tbody></table>`;
+  }
+}
+
+async function cancelSub(id) {
+  if (!confirm('Cancel this subscription at end of billing period?')) return;
+  try {
+    await fetch(API + '/admin/cancel-subscription', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ subscriptionId: id, immediate: false })
+    });
+    await loadAll();
+  } catch (e) { alert('Cancel failed: ' + e.message); }
+}
+
+function handleSearch() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    const q = document.getElementById('searchBar').value.toLowerCase();
+    // Client-side filter for now
+    if (data.subs) data.subs = data._origSubs?.filter(s =>
+      s.customerEmail?.toLowerCase().includes(q) || s.customerName?.toLowerCase().includes(q)
+    ) || data.subs;
+    renderTab();
+  }, 200);
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// Tab clicks
+document.getElementById('tabs').addEventListener('click', e => {
+  if (e.target.dataset.tab) { currentTab = e.target.dataset.tab; renderTab(); }
+});
+
+// Auto-login
+if (token) showDash().catch(() => doLogout());
+</script>
+</body>
+</html>
