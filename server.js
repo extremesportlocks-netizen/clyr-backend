@@ -131,14 +131,33 @@ async function ensureTables() {
   try {
     await pool.query('SELECT 1 FROM customers LIMIT 1');
     console.log('✓ Database tables exist');
+    // Run migrations for new tables/columns
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS page_views (
+        id SERIAL PRIMARY KEY, visitor_id VARCHAR(255) NOT NULL, page_path VARCHAR(500) NOT NULL,
+        referrer VARCHAR(500), ip_address VARCHAR(45), city VARCHAR(100), state VARCHAR(100),
+        country VARCHAR(100), lat DECIMAL(9,6), lng DECIMAL(9,6), viewed_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS funnel_events (
+        id SERIAL PRIMARY KEY, visitor_id VARCHAR(255) NOT NULL,
+        event_type VARCHAR(50) NOT NULL, metadata JSONB, created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_page_views_time ON page_views(viewed_at);
+      CREATE INDEX IF NOT EXISTS idx_page_views_visitor ON page_views(visitor_id);
+      CREATE INDEX IF NOT EXISTS idx_funnel_events_type ON funnel_events(event_type);
+      CREATE INDEX IF NOT EXISTS idx_funnel_events_time ON funnel_events(created_at);
+    `).catch(e => console.log('Migration note:', e.message));
+    // Add columns if they don't exist (safe for existing tables)
+    const cols = ['ip_address VARCHAR(45)', 'city VARCHAR(100)', 'state VARCHAR(100)', 'country VARCHAR(100)', 'lat DECIMAL(9,6)', 'lng DECIMAL(9,6)'];
+    for (const col of cols) {
+      const name = col.split(' ')[0];
+      await pool.query(`ALTER TABLE page_views ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {});
+    }
+    console.log('✓ Migrations applied');
   } catch (err) {
     console.log('Initializing database tables...');
     const { execSync } = require('child_process');
-    try {
-      execSync('node scripts/init-db.js', { stdio: 'inherit' });
-    } catch (initErr) {
-      console.error('Auto-init failed — run: npm run db:init');
-    }
+    try { execSync('node scripts/init-db.js', { stdio: 'inherit' }); } catch (initErr) { console.error('Auto-init failed — run: npm run db:init'); }
   }
 }
 
