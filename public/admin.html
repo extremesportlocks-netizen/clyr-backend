@@ -231,7 +231,6 @@ async function fetchWithRetry(url, opts = {}, retries = 3) {
   }
   throw new Error('Server is waking up — please try again in a moment');
 }
-}
 
 function doLogout() {
   localStorage.removeItem('th_admin_token');
