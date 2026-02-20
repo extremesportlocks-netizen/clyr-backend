@@ -33,6 +33,16 @@ app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }), webho
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ── Health check (before everything) ───────────────────────
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    brand: process.env.BRAND_NAME || 'Telehealth Backend',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()) + 's'
+  });
+});
+
 // ── Static files (admin dashboard) ─────────────────────────
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -42,16 +52,6 @@ const adminRoutes = require('./routes/admin');
 
 app.use('/api', checkoutRoutes);
 app.use('/api/admin', adminRoutes);
-
-// ── Health check ───────────────────────────────────────────
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    brand: process.env.BRAND_NAME || 'Telehealth Backend',
-    timestamp: new Date().toISOString(),
-    uptime: Math.floor(process.uptime()) + 's'
-  });
-});
 
 // ── MDI redirect — sends user to MDI intake after payment ──
 app.get('/api/intake-redirect', (req, res) => {
