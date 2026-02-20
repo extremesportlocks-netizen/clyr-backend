@@ -33,6 +33,19 @@ app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }), webho
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ── Root route ──────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.json({
+    service: process.env.BRAND_NAME || 'Telehealth Backend',
+    status: 'running',
+    endpoints: {
+      health: '/api/health',
+      products: '/api/products',
+      admin: '/admin.html'
+    }
+  });
+});
+
 // ── Health check (before everything) ───────────────────────
 app.get('/api/health', (req, res) => {
   res.json({
