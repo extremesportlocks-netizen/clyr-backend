@@ -32,59 +32,27 @@ router.post('/login', async (req, res) => {
 // ── GET /api/admin/dashboard ───────────────────────────────
 router.get('/dashboard', adminAuth, async (req, res) => {
   try {
-    // Total customers
-    const customersResult = await pool.query(
-      "SELECT COUNT(*) as total FROM customers WHERE role = 'customer'"
+    const customersResult = await pool.query("SELECT COUNT(*) as total FROM customers WHERE role = 'customer'");
+    const activeSubs = await pool.query("SELECT COUNT(*) as total FROM subscriptions WHERE status = 'active'");
+    const monthRevenue = await pool.query(`SELECT COALESCE(SUM(amount_cents), 0) as total FROM orders WHERE status = 'paid' AND created_at >= date_trunc('month', CURRENT_DATE)`);
+    const totalRevenue = await pool.query("SELECT COALESCE(SUM(amount_cents), 0) as total FROM orders WHERE status = 'paid'");
+    const byProduct = await pool.query(`SELECT product_type, COUNT(*) as count FROM subscriptions WHERE status = 'active' GROUP BY product_type`);
+    const byPlan = await pool.query(`SELECT plan_type, COUNT(*) as count FROM subscriptions WHERE status = 'active' GROUP BY plan_type`);
+    const recentSignups = await pool.query(`SELECT COUNT(*) as total FROM customers WHERE role = 'customer' AND created_at >= NOW() - INTERVAL '7 days'`);
+    const churn = await pool.query(`SELECT COUNT(*) as total FROM subscriptions WHERE status = 'canceled' AND canceled_at >= NOW() - INTERVAL '30 days'`);
+    const mrr = await pool.query(`SELECT COALESCE(SUM(amount_cents), 0) as total FROM subscriptions WHERE status = 'active'`);
+
+    // Revenue chart data (last 90 days)
+    const revenueChart = await pool.query(
+      `SELECT date_trunc('day', created_at) as date, SUM(amount_cents) as revenue, COUNT(*) as orders
+       FROM orders WHERE status = 'paid' AND created_at >= NOW() - INTERVAL '90 days'
+       GROUP BY date_trunc('day', created_at) ORDER BY date`
     );
 
-    // Active subscriptions
-    const activeSubs = await pool.query(
-      "SELECT COUNT(*) as total FROM subscriptions WHERE status = 'active'"
-    );
-
-    // Revenue this month
-    const monthRevenue = await pool.query(
-      `SELECT COALESCE(SUM(amount_cents), 0) as total
-       FROM orders WHERE status = 'paid'
-       AND created_at >= date_trunc('month', CURRENT_DATE)`
-    );
-
-    // Revenue all time
-    const totalRevenue = await pool.query(
-      "SELECT COALESCE(SUM(amount_cents), 0) as total FROM orders WHERE status = 'paid'"
-    );
-
-    // Subscriptions by product
-    const byProduct = await pool.query(
-      `SELECT product_type, COUNT(*) as count
-       FROM subscriptions WHERE status = 'active'
-       GROUP BY product_type`
-    );
-
-    // Subscriptions by plan
-    const byPlan = await pool.query(
-      `SELECT plan_type, COUNT(*) as count
-       FROM subscriptions WHERE status = 'active'
-       GROUP BY plan_type`
-    );
-
-    // Recent signups (last 7 days)
-    const recentSignups = await pool.query(
-      `SELECT COUNT(*) as total FROM customers
-       WHERE role = 'customer' AND created_at >= NOW() - INTERVAL '7 days'`
-    );
-
-    // Churn (canceled in last 30 days)
-    const churn = await pool.query(
-      `SELECT COUNT(*) as total FROM subscriptions
-       WHERE status = 'canceled' AND canceled_at >= NOW() - INTERVAL '30 days'`
-    );
-
-    // MRR (Monthly Recurring Revenue)
-    const mrr = await pool.query(
-      `SELECT COALESCE(SUM(amount_cents), 0) as total
-       FROM subscriptions WHERE status = 'active'`
-    );
+    // Page view tracking
+    const pageViews = await pool.query(
+      `SELECT COALESCE(SUM(view_count), 0) as total FROM page_views WHERE viewed_at >= date_trunc('month', CURRENT_DATE)`
+    ).catch(() => ({ rows: [{ total: 0 }] }));
 
     res.json({
       stats: {
@@ -94,10 +62,14 @@ router.get('/dashboard', adminAuth, async (req, res) => {
         totalRevenue: parseInt(totalRevenue.rows[0].total),
         recentSignups: parseInt(recentSignups.rows[0].total),
         churn30d: parseInt(churn.rows[0].total),
-        mrr: parseInt(mrr.rows[0].total)
+        mrr: parseInt(mrr.rows[0].total),
+        totalVisitors: parseInt(pageViews.rows[0].total) || 0
       },
       byProduct: byProduct.rows,
-      byPlan: byPlan.rows
+      byPlan: byPlan.rows,
+      revenueChart: revenueChart.rows,
+      stripeConnected: !!process.env.STRIPE_SECRET_KEY,
+      mdiConnected: !!process.env.MDI_API_KEY
     });
   } catch (err) {
     console.error('Dashboard error:', err);
@@ -326,6 +298,38 @@ router.get('/revenue-chart', adminAuth, async (req, res) => {
   } catch (err) {
     console.error('Revenue chart error:', err);
     res.status(500).json({ error: 'Failed to load chart data' });
+  }
+});
+
+// ── GET /api/admin/analytics/live ───────────────────────────
+// Real-time visitor tracking (reads from page_views table)
+router.get('/analytics/live', adminAuth, async (req, res) => {
+  try {
+    // Active visitors in last 5 minutes
+    const active = await pool.query(
+      `SELECT COUNT(DISTINCT visitor_id) as total FROM page_views WHERE viewed_at >= NOW() - INTERVAL '5 minutes'`
+    ).catch(() => ({ rows: [{ total: 0 }] }));
+
+    // Pages being viewed right now
+    const pages = await pool.query(
+      `SELECT page_path as page, COUNT(*) as count FROM page_views
+       WHERE viewed_at >= NOW() - INTERVAL '5 minutes'
+       GROUP BY page_path ORDER BY count DESC LIMIT 8`
+    ).catch(() => ({ rows: [] }));
+
+    // Today's visitors
+    const today = await pool.query(
+      `SELECT COUNT(DISTINCT visitor_id) as total FROM page_views WHERE viewed_at >= date_trunc('day', NOW())`
+    ).catch(() => ({ rows: [{ total: 0 }] }));
+
+    res.json({
+      activeVisitors: parseInt(active.rows[0]?.total || 0),
+      todayVisitors: parseInt(today.rows[0]?.total || 0),
+      pages: pages.rows.map(p => ({ page: p.page, count: parseInt(p.count) }))
+    });
+  } catch (err) {
+    console.error('Live analytics error:', err);
+    res.json({ activeVisitors: 0, todayVisitors: 0, pages: [] });
   }
 });
 

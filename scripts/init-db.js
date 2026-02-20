@@ -85,6 +85,15 @@ CREATE TABLE IF NOT EXISTS admin_activity (
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Page views / analytics tracking
+CREATE TABLE IF NOT EXISTS page_views (
+  id              SERIAL PRIMARY KEY,
+  visitor_id      VARCHAR(255) NOT NULL,
+  page_path       VARCHAR(500) NOT NULL,
+  referrer        VARCHAR(500),
+  viewed_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);
 CREATE INDEX IF NOT EXISTS idx_customers_stripe ON customers(stripe_customer_id);
@@ -94,6 +103,9 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_webhook_events_stripe ON webhook_events(stripe_event_id);
+CREATE INDEX IF NOT EXISTS idx_page_views_visitor ON page_views(visitor_id);
+CREATE INDEX IF NOT EXISTS idx_page_views_time ON page_views(viewed_at);
+CREATE INDEX IF NOT EXISTS idx_page_views_page ON page_views(page_path);
 `;
 
 async function initDB() {

@@ -67,6 +67,20 @@ const adminRoutes = require('./routes/admin');
 app.use('/api', checkoutRoutes);
 app.use('/api/admin', adminRoutes);
 
+// ── Public page view tracker (no auth) ─────────────────────
+app.post('/api/track', async (req, res) => {
+  try {
+    const { page, visitor_id, referrer } = req.body;
+    if (!page) return res.status(400).json({ error: 'page required' });
+    const vid = visitor_id || req.ip || 'anon-' + Date.now();
+    await pool.query(
+      `INSERT INTO page_views (visitor_id, page_path, referrer, viewed_at) VALUES ($1, $2, $3, NOW())`,
+      [vid, page, referrer || null]
+    ).catch(() => {});
+    res.json({ ok: true });
+  } catch (err) { res.json({ ok: true }); }
+});
+
 // ── MDI redirect — sends user to MDI intake after payment ──
 app.get('/api/intake-redirect', (req, res) => {
   const intakeUrl = process.env.MDI_INTAKE_URL;
