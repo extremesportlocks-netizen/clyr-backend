@@ -3,7 +3,7 @@ const router = express.Router();
 const pool = require('../config/database');
 
 // Initialize Stripe (key comes from env)
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
 
 // ── Price map from env ─────────────────────────────────────
 function getPriceId(productType, planType) {
