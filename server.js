@@ -17,7 +17,7 @@ app.use(cors({
     // Allow requests with no origin (mobile apps, curl, etc)
     if (!origin) return callback(null, true);
     // Allow same-origin (Render URL) and configured origins
-    if (allowedOrigins.includes(origin) || origin.includes('onrender.com') || process.env.NODE_ENV !== 'production') {
+    if (allowedOrigins.includes(origin) || origin.includes('onrender.com') || origin.includes('clyr.health') || origin.includes('clyr-marketing') || origin.includes('github.io') || process.env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
     callback(new Error('Not allowed by CORS'));
