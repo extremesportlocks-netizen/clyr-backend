@@ -69,6 +69,9 @@ body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%
 .main-content{margin-left:var(--sidebar-w);flex:1;min-height:100vh}
 .topbar{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:14px 28px;background:rgba(5,5,7,0.7);backdrop-filter:blur(30px);border-bottom:1px solid var(--glass-border)}
 .topbar-title{font-size:18px;font-weight:800;letter-spacing:-.5px}
+.hamburger{display:none;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:8px}
+.hamburger span{display:block;width:20px;height:2px;background:var(--text);border-radius:2px}
+.sidebar-overlay{display:none}
 .topbar-right{display:flex;gap:10px;align-items:center}
 .live-indicator{display:flex;align-items:center;gap:8px;padding:6px 14px;border-radius:20px;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.15)}
 .live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;box-shadow:0 0 8px var(--green)}
@@ -206,7 +209,7 @@ body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%
 .timeline-item.current::before{background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 6px rgba(0,212,255,0.3)}
 .timeline-item .tl-label{color:var(--text-dim);font-weight:500}.timeline-item .tl-date{color:var(--text-muted);font-size:10px;font-family:var(--mono)}
 @media(max-width:1200px){.stats-grid{grid-template-columns:repeat(3,1fr)}.grid-2,.grid-2-equal{grid-template-columns:1fr}}
-@media(max-width:900px){.sidebar{display:none}.main-content{margin-left:0}.stats-grid{grid-template-columns:1fr 1fr}.health-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.sidebar{display:flex;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:300}.sidebar.mobile-open{transform:translateX(0)}.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:250;transition:opacity .3s}.sidebar-overlay.active{display:block}.main-content{margin-left:0}.stats-grid{grid-template-columns:1fr 1fr}.health-grid{grid-template-columns:1fr}.hamburger{display:flex;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:8px;margin-right:8px}.hamburger span{display:block;width:20px;height:2px;background:var(--text);border-radius:2px;transition:all .3s}.tabs{overflow-x:auto;width:100%;flex-wrap:nowrap}.tab{white-space:nowrap;flex-shrink:0}.grid-2-equal{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -270,10 +273,10 @@ body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%
         </div>
       </div>
     </aside>
-
-    <!-- MAIN -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileSidebar()"></div>
     <div class="main-content">
       <div class="topbar">
+        <button class="hamburger" id="hamburgerBtn" onclick="toggleMobileSidebar()"><span></span><span></span><span></span></button>
         <div class="topbar-title" id="pageTitle">Dashboard</div>
         <div class="topbar-right">
           <div class="live-indicator"><span class="live-dot"></span><span class="live-count" id="topLive">0 live</span></div>
@@ -386,7 +389,8 @@ function doLogout(){localStorage.removeItem('th_admin_token');token=null;if(refr
 async function apiFetch(path){const r=await fetch(API+path,{headers:{Authorization:'Bearer '+token}});if(r.status===401){doLogout();throw new Error('Unauthorized')}if(!r.ok)throw new Error('API error');return r.json()}
 
 // NAVIGATION
-function switchPage(page){currentPage=page;document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById('page-'+page).classList.add('active');document.querySelectorAll('.sidebar-item').forEach(i=>i.classList.toggle('active',i.dataset.page===page));const titles={dashboard:'Dashboard',analytics:'Analytics',customers:'Customers',orders:'Orders & Revenue',pharmacy:'Pharmacy & Fulfillment',marketing:'Marketing Hub',notifications:'Notifications',settings:'Settings'};document.getElementById('pageTitle').textContent=titles[page]||page;if(page==='analytics'){setTimeout(()=>{if(visitorMap)visitorMap.invalidateSize();else initMap()},100);loadFunnel();loadGeoData();renderTrafficSources()}if(page==='customers')renderCustomersPage();if(page==='orders'){renderOrdersPage();renderProductChart();renderRevenueByProduct()}if(page==='marketing'){renderMarketingPage()}if(page==='notifications'){renderNotificationsPage()}}
+function toggleMobileSidebar(){const sb=document.querySelector('.sidebar');const ov=document.getElementById('sidebarOverlay');sb.classList.toggle('mobile-open');ov.classList.toggle('active')}
+function switchPage(page){currentPage=page;document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById('page-'+page).classList.add('active');document.querySelectorAll('.sidebar-item').forEach(i=>i.classList.toggle('active',i.dataset.page===page));const titles={dashboard:'Dashboard',analytics:'Analytics',customers:'Customers',orders:'Orders & Revenue',pharmacy:'Pharmacy & Fulfillment',marketing:'Marketing Hub',notifications:'Notifications',settings:'Settings'};document.getElementById('pageTitle').textContent=titles[page]||page;const sb=document.querySelector('.sidebar');const ov=document.getElementById('sidebarOverlay');if(sb)sb.classList.remove('mobile-open');if(ov)ov.classList.remove('active');if(page==='analytics'){setTimeout(()=>{if(visitorMap)visitorMap.invalidateSize();else initMap()},100);loadFunnel();loadGeoData();renderTrafficSources()}if(page==='customers')renderCustomersPage();if(page==='orders'){renderOrdersPage();renderProductChart();renderRevenueByProduct()}if(page==='marketing'){renderMarketingPage()}if(page==='notifications'){renderNotificationsPage()}}
 
 function switchOrderTab(tab){orderTab=tab;document.querySelectorAll('#orderTabs .tab').forEach(t=>t.classList.toggle('active',t.dataset.otab===tab));renderOrderTable()}
 
