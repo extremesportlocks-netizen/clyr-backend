@@ -472,4 +472,52 @@ router.get('/seed', async (req, res) => {
   }
 });
 
+// ── GET /api/admin/analytics/traffic-sources ────────────────
+router.get('/analytics/traffic-sources', adminAuth, async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 30;
+    const interval = days + ' days';
+    
+    // Get UTM sources from intake submissions
+    const result = await pool.query(`
+      SELECT 
+        COALESCE(NULLIF(utm_source, ''), 
+          CASE 
+            WHEN referrer ILIKE '%instagram%' THEN 'Instagram'
+            WHEN referrer ILIKE '%google%' THEN 'Google'
+            WHEN referrer ILIKE '%tiktok%' THEN 'TikTok'
+            WHEN referrer ILIKE '%facebook%' OR referrer ILIKE '%fb.%' THEN 'Facebook'
+            WHEN referrer ILIKE '%twitter%' OR referrer ILIKE '%t.co%' THEN 'Twitter/X'
+            WHEN referrer ILIKE '%youtube%' THEN 'YouTube'
+            WHEN referrer ILIKE '%linkedin%' THEN 'LinkedIn'
+            WHEN referrer ILIKE '%mail%' OR referrer ILIKE '%email%' THEN 'Email'
+            WHEN referrer IS NOT NULL AND referrer != '' THEN 'Referral'
+            ELSE 'Direct'
+          END
+        ) as source,
+        COUNT(*) as visits
+      FROM customers
+      WHERE created_at >= NOW() - INTERVAL '${interval}'
+      GROUP BY source
+      ORDER BY visits DESC
+      LIMIT 10
+    `);
+
+    const sources = result.rows.map(r => ({
+      source: r.source,
+      visits: parseInt(r.visits)
+    }));
+
+    res.json({ sources });
+  } catch (err) {
+    console.error('Traffic sources error:', err);
+    // Return defaults on error
+    res.json({ sources: [
+      {source:'Direct',visits:0},{source:'Instagram',visits:0},{source:'Google',visits:0},
+      {source:'TikTok',visits:0},{source:'Facebook',visits:0},{source:'Twitter/X',visits:0},
+      {source:'YouTube',visits:0},{source:'LinkedIn',visits:0},{source:'Email',visits:0},{source:'Referral',visits:0}
+    ]});
+  }
+});
+
 module.exports = router;
