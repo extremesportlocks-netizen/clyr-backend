@@ -520,4 +520,51 @@ router.get('/analytics/traffic-sources', adminAuth, async (req, res) => {
   }
 });
 
+// ── GET /api/admin/messages ──────────────────────────────
+router.get('/messages', adminAuth, async (req, res) => {
+  try {
+    const { status, limit = 50, offset = 0 } = req.query;
+    let query = 'SELECT * FROM contact_submissions';
+    const params = [];
+    if (status && status !== 'all') {
+      params.push(status);
+      query += ` WHERE status = $${params.length}`;
+    }
+    query += ' ORDER BY created_at DESC';
+    params.push(parseInt(limit));
+    query += ` LIMIT $${params.length}`;
+    params.push(parseInt(offset));
+    query += ` OFFSET $${params.length}`;
+    const result = await pool.query(query, params);
+
+    const countQ = status && status !== 'all'
+      ? await pool.query('SELECT COUNT(*) FROM contact_submissions WHERE status = $1', [status])
+      : await pool.query('SELECT COUNT(*) FROM contact_submissions');
+    const newCount = await pool.query("SELECT COUNT(*) FROM contact_submissions WHERE status = 'new'");
+
+    res.json({ messages: result.rows, total: parseInt(countQ.rows[0].count), new_count: parseInt(newCount.rows[0].count) });
+  } catch (err) {
+    console.error('Messages fetch error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── PUT /api/admin/messages/:id ─────────────────────────
+router.put('/messages/:id', adminAuth, async (req, res) => {
+  try {
+    const { status, admin_notes } = req.body;
+    const updates = [];
+    const params = [];
+    if (status) { params.push(status); updates.push(`status = $${params.length}`); }
+    if (admin_notes !== undefined) { params.push(admin_notes); updates.push(`admin_notes = $${params.length}`); }
+    if (!updates.length) return res.status(400).json({ error: 'No updates provided' });
+    params.push(req.params.id);
+    await pool.query(`UPDATE contact_submissions SET ${updates.join(', ')} WHERE id = $${params.length}`, params);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Message update error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

@@ -116,6 +116,25 @@ app.post('/api/track', async (req, res) => {
   } catch (err) { res.json({ ok: true }); }
 });
 
+// ── Contact form submission (no auth) ────────────────────
+app.post('/api/contact', async (req, res) => {
+  try {
+    const { topic, first_name, last_name, email, phone, message } = req.body;
+    if (!topic || !first_name || !last_name || !email || !message) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    await pool.query(
+      `INSERT INTO contact_submissions (topic, first_name, last_name, email, phone, message, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'new', NOW())`,
+      [topic, first_name, last_name, email, phone || null, message]
+    );
+    res.json({ ok: true, message: 'Contact form submitted' });
+  } catch (err) {
+    console.error('Contact form error:', err);
+    res.status(500).json({ error: 'Failed to submit' });
+  }
+});
+
 // ── MDI redirect — sends user to MDI intake after payment ──
 app.get('/api/intake-redirect', (req, res) => {
   const intakeUrl = process.env.MDI_INTAKE_URL;
@@ -160,6 +179,14 @@ async function ensureTables() {
       CREATE INDEX IF NOT EXISTS idx_funnel_events_time ON funnel_events(created_at);
       CREATE INDEX IF NOT EXISTS idx_intake_submissions_email ON intake_submissions(email);
       CREATE INDEX IF NOT EXISTS idx_intake_submissions_status ON intake_submissions(status);
+      CREATE TABLE IF NOT EXISTS contact_submissions (
+        id SERIAL PRIMARY KEY, topic VARCHAR(100) NOT NULL, first_name VARCHAR(100) NOT NULL,
+        last_name VARCHAR(100) NOT NULL, email VARCHAR(255) NOT NULL, phone VARCHAR(20),
+        message TEXT NOT NULL, status VARCHAR(20) DEFAULT 'new', admin_notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_contact_status ON contact_submissions(status);
+      CREATE INDEX IF NOT EXISTS idx_contact_time ON contact_submissions(created_at);
     `).catch(e => console.log('Migration note:', e.message));
     // Add columns if they don't exist (safe for existing tables)
     const pvCols = ['ip_address VARCHAR(45)', 'city VARCHAR(100)', 'state VARCHAR(100)', 'country VARCHAR(100)', 'lat DECIMAL(9,6)', 'lng DECIMAL(9,6)'];
